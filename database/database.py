@@ -6,7 +6,7 @@ from sqlalchemy import (VARCHAR, Boolean, Column, DateTime, Integer, String,
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-engine = create_engine('sqlite:///database/data.db', echo=True)
+engine = create_engine('sqlite:///database/data.db', echo=False)
 Base = declarative_base()
 Session = sessionmaker(bind=engine)
 
