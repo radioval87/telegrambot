@@ -1,14 +1,23 @@
-import os
-import sqlite3
-
-from sqlalchemy import (VARCHAR, Boolean, Column, DateTime, Integer, String,
-                        create_engine)
+from sqlalchemy import (VARCHAR, Boolean, Column, DateTime, ForeignKey,
+                        Integer, String, create_engine)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from tools.miscellaneous import add_logger_err
 
 engine = create_engine('sqlite:///database/data.db', echo=False)
 Base = declarative_base()
 Session = sessionmaker(bind=engine)
+
+
+class Chat(Base):
+    __tablename__ = 'chats'
+    id = Column('pk', Integer, primary_key=True, nullable=False)
+    chat_id = Column('chat_id', Integer, unique=True, nullable=False)
+    chat_title = Column('chat_title', VARCHAR(50))
+    ban_mode = Column('ban_mode', Boolean, default=0)
+   
+    def __str__(self):
+        return f'Chat {self.chat_title} with {self.chat_id}. Ban mode:{ban_mode}'
 
 
 class User(Base):
@@ -24,22 +33,40 @@ class User(Base):
     inviter_username = Column('inviter_username', VARCHAR(50))
     inviter_first_name = Column('inviter_first_name', VARCHAR(50), nullable=False)
     invites = Column('invites', Integer, default=10)
-    enter_chat_id = Column('enter_chat_id', Integer, nullable=False)
+    enter_chat_id = Column('enter_chat_id', Integer, ForeignKey('chats.chat_id'), nullable=False)
 
     def __str__(self):
         return f'User {self.username or self.first_name} with {self.tg_id} telegram id'
 
+
+class Message(Base):
+    __tablename__ = 'messages'
+    id = Column('pk', Integer, primary_key=True, nullable=False)
+    from_id = Column('from_id', Integer, ForeignKey('users.tg_id'), nullable=False)
+    from_username = Column('from_username', VARCHAR(50), ForeignKey('users.username'))
+    from_first_name = Column('from_first_name', VARCHAR(50), ForeignKey('users.first_name'), nullable=False)
+    msg_date = Column('msg_date', DateTime, nullable=False)
+    msg_type = Column('msg_type', VARCHAR(20))
+    text = Column('text', VARCHAR(4096))
+    chat_id = Column('chat_id', Integer, ForeignKey('chats.chat_id'), nullable=False)
+    mat = Column('mat', Boolean, nullable=False)
+    caps = Column('caps', Boolean, nullable=False)
+
+    def __str__(self):
+        return f'Message from {self.username or self.first_name} in {self.chat_id} chat'
+
+
+
 Base.metadata.create_all(bind=engine)
 
 def create(model, **kwargs):
-    print(model)
-    print(kwargs)
     session = Session()
     try:
         instance = model(**kwargs)
         session.add(instance)
         session.commit()
-    except:
+    except Exception as e:
+        add_logger_err(e)
         session.rollback()
     finally:
         session.close()
@@ -51,15 +78,24 @@ def get(model, **kwargs):
         if instance:
             return instance
         return None 
+    except Exception as e:
+        add_logger_err(e)
     finally:
         session.close()
 
-# def get_or_create(session, model, **kwargs):
-#     instance = session.query(model).filter_by(**kwargs).first()
-#     if instance:
-#         return instance
-#     else:
-#         instance = model(**kwargs)
-#         session.add(instance)
-#         session.commit()
-#         return instance
+def get_or_create(model, **kwargs):
+    session = Session()
+    try:
+        instance = session.query(model).filter_by(**kwargs).first()
+        if instance:
+            return instance
+        else:
+            instance = model(**kwargs)
+            session.add(instance)
+            session.commit()
+            return instance
+    except Exception as e:
+        add_logger_err(e)
+        session.rollback()
+    finally:
+        session.close()
