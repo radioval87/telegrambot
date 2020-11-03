@@ -12,7 +12,7 @@ engine = create_engine('sqlite:///database/data.db', echo=False)
 Base = declarative_base()
 Session = sessionmaker(bind=engine)
 
-logger = logging.getLogger('errors').setLevel(logging.WARNING)
+logger = logging.getLogger('main_bot').setLevel(logging.WARNING)
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 
 @event.listens_for(Engine, "connect")
@@ -23,7 +23,7 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
 
 class Chat(Base):
     __tablename__ = 'chats'
-    id = Column('pk', Integer, primary_key=True, nullable=False)
+    id = Column('id', Integer, primary_key=True, nullable=False)
     chat_id = Column('chat_id', Integer, unique=True, nullable=False)
     chat_title = Column('chat_title', VARCHAR(50))
     ban_mode = Column('ban_mode', Boolean, default=0)
@@ -34,7 +34,7 @@ class Chat(Base):
 
 class User(Base):
     __tablename__ = 'users'
-    id = Column('pk', Integer, primary_key=True, nullable=False)
+    id = Column('id', Integer, primary_key=True, nullable=False)
     tg_id = Column('tg_id', Integer, unique=True, nullable=False)
     username = Column('username', VARCHAR(50), unique=True)
     first_name = Column('first_name', VARCHAR(50), nullable=False)
@@ -54,7 +54,7 @@ class User(Base):
 
 class Message(Base):
     __tablename__ = 'messages'
-    id = Column('pk', Integer, primary_key=True, nullable=False)
+    id = Column('id', Integer, primary_key=True, nullable=False)
     from_id = Column('from_id', Integer, ForeignKey('users.tg_id'), nullable=False)
     from_username = Column('from_username', VARCHAR(50), ForeignKey('users.username'))
     from_first_name = Column('from_first_name', VARCHAR(50), nullable=False)
@@ -69,7 +69,6 @@ class Message(Base):
         return f'Message from {self.username or self.first_name} in {self.chat_id} chat'
 
 
-
 Base.metadata.create_all(bind=engine)
 
 def create(model, **kwargs):
@@ -80,8 +79,7 @@ def create(model, **kwargs):
         session.commit()
         logging.info('Message added to DB')
     except Exception as e:
-        error_msg = repr(e)
-        logger.exception(error_msg)
+        add_logger_err(e)
         session.rollback()
     finally:
         session.close()
