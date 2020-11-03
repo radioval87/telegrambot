@@ -1,13 +1,25 @@
+import logging
+from sqlalchemy import update
 from sqlalchemy import (VARCHAR, Boolean, Column, DateTime, ForeignKey,
                         Integer, String, create_engine)
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, relationship
 from tools.miscellaneous import add_logger_err
+from sqlalchemy.engine import Engine
+from sqlalchemy import event
 
 engine = create_engine('sqlite:///database/data.db', echo=False)
 Base = declarative_base()
 Session = sessionmaker(bind=engine)
 
+logger = logging.getLogger('errors').setLevel(logging.WARNING)
+logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
+
+@event.listens_for(Engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
 
 class Chat(Base):
     __tablename__ = 'chats'
@@ -36,15 +48,16 @@ class User(Base):
     enter_chat_id = Column('enter_chat_id', Integer, ForeignKey('chats.chat_id'), nullable=False)
 
     def __str__(self):
-        return f'User {self.username or self.first_name} with {self.tg_id} telegram id'
-
+        if self.username != 'NULL':
+            return f'User {self.username} with {self.tg_id} telegram id'
+        return f'User {self.first_name} with {self.tg_id} telegram id'
 
 class Message(Base):
     __tablename__ = 'messages'
     id = Column('pk', Integer, primary_key=True, nullable=False)
     from_id = Column('from_id', Integer, ForeignKey('users.tg_id'), nullable=False)
     from_username = Column('from_username', VARCHAR(50), ForeignKey('users.username'))
-    from_first_name = Column('from_first_name', VARCHAR(50), ForeignKey('users.first_name'), nullable=False)
+    from_first_name = Column('from_first_name', VARCHAR(50), nullable=False)
     msg_date = Column('msg_date', DateTime, nullable=False)
     msg_type = Column('msg_type', VARCHAR(20))
     text = Column('text', VARCHAR(4096))
@@ -65,8 +78,10 @@ def create(model, **kwargs):
         instance = model(**kwargs)
         session.add(instance)
         session.commit()
+        logging.info('Message added to DB')
     except Exception as e:
-        add_logger_err(e)
+        error_msg = repr(e)
+        logger.exception(error_msg)
         session.rollback()
     finally:
         session.close()
@@ -97,5 +112,16 @@ def get_or_create(model, **kwargs):
     except Exception as e:
         add_logger_err(e)
         session.rollback()
+    finally:
+        session.close()
+
+def update_invites(user_id, value):
+    session = Session()
+    try:
+        user = session.query(User).filter_by(tg_id=user_id).first()
+        user.invites = user.invites + value
+        session.commit()
+    except Exception as e:
+        add_logger_err(e)
     finally:
         session.close()

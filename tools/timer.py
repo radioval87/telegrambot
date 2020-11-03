@@ -34,11 +34,7 @@ def set_timer(update, context, due, target):
         chat_id = update.message.chat_id
         job_removed = remove_job_if_exists(str(chat_id), context)
         context.job_queue.run_once(alarm, due, context=(chat_id, target), name=str(chat_id))
-
-        text = 'Timer successfully set!'
-        if job_removed:
-            text += ' Old one was removed.'
-        update.message.reply_text(text)
+        logging.info('Timer successfully set!')
     except Exception as e:
         add_logger_err(e)
 
