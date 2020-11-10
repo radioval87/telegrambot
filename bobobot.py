@@ -35,8 +35,8 @@ validation_keyboard = ReplyKeyboardMarkup([['Да', 'Нет']],
                                           selective=True)
 remove_keyboard = ReplyKeyboardRemove()
 
-CANDIDATE_DUE = 60
-INVITER_DUE = 120
+CANDIDATE_DUE = 600
+INVITER_DUE = 600
 
 
 def msg(chat_id, text, **kwargs):
@@ -46,46 +46,62 @@ def msg(chat_id, text, **kwargs):
 
 def new_member_start(update, context, tries=3):
     """Any newcomer is handled by this function first"""
+    new_member = update.message.from_user
     print('new_member_start')
-    print(dispatcher.handlers[0])
-    print(update)
+    try:
+        print(dispatcher.handlers[2][0].__name__)
+    except:
+        pass
+    try:
+        for handler in dispatcher.handlers[2]:
+            if handler.__name__ == 'mention_handler' + str(new_member.id):
+                print(f'В цикле {handler.__name__}')
+                dispatcher.remove_handler(handler=handler, group=2)
+    except Exception as e:
+        print(repr(e))
+    try:
+        print(f'after remove: {dispatcher.handlers[2][0].__name__}')
+    except:
+        print('НЕТУ')
+    # print(update)
     
-
+    # handlers_remover(dispatcher, group=2)                                                                   # to prevent deleted messages from getting to DB
     chat_id = update.message.chat.id
     chat = db.get_or_create(db.Chat, chat_id=chat_id)                                                       #adds the chat to the database or gets it from it
     inviter = update.message.from_user
-    for new_member in update.message.new_chat_members:
-        if chat.ban_mode == 1:
+    # for new_member in update.message.new_chat_members:
+    if chat.ban_mode == 1:
+        return negative_validation(update, context, additional_context = (chat_id, None, new_member))
+
+    if inviter.id != new_member.id:                                                                              #checks if a person was added not by link
+        inviter = db.get(db.User, tg_id=inviter.id)
+        if inviter.invites > 0:
+            additional_context = (chat_id, inviter, new_member)
+            return positive_validation(update, context, additional_context)
+        until_date = int(time.time())+31                                                                         #31 seconds is a minimum ban period
+        updater.bot.kick_chat_member(chat_id=chat_id, user_id=new_member.id, until_date=until_date)
+        bot_message = msg(chat_id=chat_id, text=(f'{inviter.first_name}, {CANT_INVITE_MSG}'))
+        # print(bot_message)
+
+    else:                                                                                                       #joined the group via invite link scenario
+        if tries > 0:                                                                                           #checks how many tries left      
+            msg(chat_id=chat_id, text=(new_member.first_name + ', ' + WELCOME_MSG))
+            set_timer(update, context, due=CANDIDATE_DUE, target=new_member)                                    #activates the timer that bans the target if the due is reached
+            # wrapper.__name__ = func.__name__
+            mention_handler = MessageHandler(filters=(Filters.user(new_member.id) &
+                                                     (Filters.entity('mention') | Filters.entity('text_mention')) &
+                                                     Filters.chat(chat_id)),
+                                            callback=lambda update, context: new_member_validation(update, context, tries))
+            mention_handler.__name__ = 'mention_handler' + str(new_member.id)
+            dispatcher.add_handler(mention_handler, group=2)
+
+            dispatcher.add_handler(MessageHandler(
+                filters=(Filters.user(new_member.id) &
+                        Filters.chat(chat_id) &
+                        (~Filters.entity('mention') | ~Filters.entity('text_mention'))),
+                callback=lambda update, context: delete_messages(update, context=(chat_id, new_member))), group=2)
+        else:
             return negative_validation(update, context, additional_context = (chat_id, None, new_member))
-
-        if inviter.id != new_member.id:                                                                              #checks if a person was added not by link
-            inviter = db.get(db.User, tg_id=inviter.id)
-            if inviter.invites > 0:
-                additional_context = (chat_id, inviter, new_member)
-                return positive_validation(update, context, additional_context)
-            until_date = int(time.time())+31                                                                         #31 seconds is a minimum ban period
-            updater.bot.kick_chat_member(chat_id=chat_id, user_id=new_member.id, until_date=until_date)
-            bot_message = msg(chat_id=chat_id, text=(f'{inviter.first_name}, {CANT_INVITE_MSG}'))
-            # print(bot_message)
-
-        else:                                                                                                       #joined the group via invite link scenario
-            if tries > 0:                                                                                           #checks how many tries left 
-                # handlers_remover(dispatcher, group=0)                                                               #removes any redundant handlers      
-                msg(chat_id=chat_id, text=(new_member.first_name + ', ' + WELCOME_MSG))
-                set_timer(update, context, due=CANDIDATE_DUE, target=new_member)                                    #activates the timer that bans the target if the due is reached
-                dispatcher.add_handler(MessageHandler(
-                    filters=(Filters.user(new_member.id) &
-                            (Filters.entity('mention') | Filters.entity('text_mention')) &
-                            Filters.chat(chat_id)),
-                    callback=lambda update, context: new_member_validation(update, context, tries)), group=2) #!!!!!!!!
-
-                dispatcher.add_handler(MessageHandler(
-                    filters=(Filters.user(new_member.id) &
-                            Filters.chat(chat_id) &
-                            (~Filters.entity('mention') | ~Filters.entity('text_mention'))),
-                    callback=lambda update, context: delete_messages(update, context=(chat_id, new_member)), group=2))  #!!!!!!!!
-            else:
-                return negative_validation(update, context, additional_context = (chat_id, None, new_member))
 
 
 def new_member_validation(update, context, tries):
@@ -168,7 +184,7 @@ def add_new_member(update, context):
                 'enter_chat_id': chat_id}
     db.create(db.User, **new_user)
     logging.info(f'{candidate.username or candidate.first_name} was added to database')
-    # dispatcher.add_handler(MessageHandler(filters=((~Filters.status_update.new_chat_members) & (~Filters.command)), callback=add_msg_to_db), group=2)
+    dispatcher.add_handler(MessageHandler(filters=((~Filters.status_update.new_chat_members) & (~Filters.command)), callback=add_msg_to_db), group=2)
 
 #==========================================================================================================================
 def negative_validation(update, context, additional_context):
@@ -177,7 +193,7 @@ def negative_validation(update, context, additional_context):
     unset_timer(update, context)
     # handlers_remover(dispatcher, group=0)
     # handlers_remover(dispatcher, group=1)
-    # dispatcher.add_handler(MessageHandler(filters=Filters.status_update.new_chat_members, callback=new_member_start))
+    dispatcher.add_handler(MessageHandler(filters=Filters.status_update.new_chat_members, callback=new_member_start))
     chat = db.get(db.Chat, chat_id=chat_id)
     if chat.ban_mode == 1:
         until_date = int(time.time())+31
@@ -207,7 +223,7 @@ def add_msg_to_db(update, context):
     from_user_id = update.message.from_user.id
     from_user = db.get(db.User, tg_id=from_user_id)
     if not from_user:
-        pass
+        logging.info(f'User is not in DB')
     else:
         chat_id = update.message.chat.id
         chat = db.get(db.Chat, chat_id=chat_id)
@@ -254,7 +270,7 @@ def alarm(context):
         chat_id, target = context.job.context
         # handlers_remover(context.dispatcher, group=0)
         # handlers_remover(context.dispatcher, group=1)
-        # context.dispatcher.add_handler(MessageHandler(filters=Filters.status_update.new_chat_members, callback=new_member_start))
+        context.dispatcher.add_handler(MessageHandler(filters=Filters.status_update.new_chat_members, callback=new_member_start))
         until_date = int(time.time())+31
         context.bot.kick_chat_member(chat_id=chat_id, user_id=target.id, until_date=until_date)
         logging.info(f'{target.username or target.first_name} ran out of time and was banned')
@@ -294,44 +310,19 @@ def unset_timer(update, context):
 
 ######------------------------------------------------------
 
-
-
 if __name__ == '__main__':
     logging.info('RV87_test_bot launched.')
     updater = Updater(token=TELEGRAM_TOKEN)
     dispatcher = updater.dispatcher
-    dispatcher.add_handler(MessageHandler(filters=Filters.status_update.new_chat_members, callback=new_member_start), group=3)
-    dispatcher.add_handler(MessageHandler(filters=((~Filters.status_update.new_chat_members) & (~Filters.command)), callback=add_msg_to_db), group=3)
+    # dispatcher.add_handler(MessageHandler(filters=Filters.status_update.new_chat_members, callback=new_member_start))
 
+    dispatcher.add_handler(MessageHandler(filters=(Filters.regex(r'ннн')), callback=new_member_start), group=3)
+    dispatcher.add_handler(MessageHandler(filters=(~Filters.regex(r'ннн')), callback=add_msg_to_db), group=3)
     
-    # dispatcher.add_handler(CommandHandler('admin', callback=add_admin))
-    # dispatcher.add_handler(MessageHandler(filters=(Filters.regex(r'new')), callback=new_member_start))
-    # dispatcher.add_handler(MessageHandler(filters=(~Filters.regex(r'new')), callback=add_msg_to_db))
+    dispatcher.add_handler(CommandHandler('admin', callback=add_admin))
+    
     updater.start_polling()
     updater.idle()
 
-
-
         # for handler in dispatcher.handlers[1]:
         #     print(handler.filters)
-
-
-    # print(f'delete context {dir(context)}')
-    # print(f'args {context.args}')
-    # print(f'async_args {context.async_args}')
-    # print(f'async_kwargs {context.async_kwargs}')
-    # print(f'bot {context.bot}')
-    # print(f'bot_data {context.bot_data}')
-    # print(f'chat_data {context.chat_data}')
-    # print(f'dispatcher {context.dispatcher}')
-    # print(f'error {context.error}')
-    # print(f'from_error {context.from_error}')
-    # print(f'from_job {context.from_job}')
-    # print(f'from_update {context.from_update}')
-    # print(f'job {context.job}')
-    # print(f'job_queue {context.job_queue}' )
-    # print(f'match {context.match}')
-    # print(f'matches {context.matches}')
-    # print(f'update {context.update}')
-    # print(f'update_queue {context.update_queue}')
-    # print(f'user_data {context.user_data}')

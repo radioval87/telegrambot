@@ -7,6 +7,7 @@ from sqlalchemy.orm import sessionmaker, relationship
 from tools.miscellaneous import add_logger_err
 from sqlalchemy.engine import Engine
 from sqlalchemy import event
+# from sqlalchemy.orm.relationship import passive_deletes
 
 engine = create_engine('sqlite:///database/data.db', echo=False)
 Base = declarative_base()
@@ -45,7 +46,7 @@ class User(Base):
     inviter_username = Column('inviter_username', VARCHAR(50))
     inviter_first_name = Column('inviter_first_name', VARCHAR(50), nullable=False)
     invites = Column('invites', Integer, default=10)
-    enter_chat_id = Column('enter_chat_id', Integer, ForeignKey('chats.chat_id'), nullable=False)
+    enter_chat_id = Column('enter_chat_id', Integer, ForeignKey('chats.chat_id'), nullable=True)
 
     def __str__(self):
         if self.username != 'NULL':
@@ -55,9 +56,9 @@ class User(Base):
 class Message(Base):
     __tablename__ = 'messages'
     id = Column('id', Integer, primary_key=True, nullable=False)
-    from_id = Column('from_id', Integer, ForeignKey('users.tg_id'), nullable=False)
-    from_username = Column('from_username', VARCHAR(50), ForeignKey('users.username'))
-    from_first_name = Column('from_first_name', VARCHAR(50), nullable=False)
+    from_id = Column('from_id', Integer, ForeignKey('users.tg_id'), nullable=True)
+    from_username = Column('from_username', VARCHAR(50), ForeignKey('users.username'), nullable=True)
+    from_first_name = Column('from_first_name', VARCHAR(50), nullable=True)
     msg_date = Column('msg_date', DateTime, nullable=False)
     msg_type = Column('msg_type', VARCHAR(20))
     text = Column('text', VARCHAR(4096))

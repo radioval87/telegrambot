@@ -1,7 +1,9 @@
 import logging
 import time
 
-from .miscellaneous import add_logger_err
+from .miscellaneous import add_logger_err, handlers_remover
+# from bot import new_member_start
+from telegram.ext import Filters, MessageHandler
 
 logger = logging.getLogger('timer').setLevel(logging.WARNING)
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
@@ -9,7 +11,12 @@ logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 def alarm(context):
     """Blocks the target when time runs out"""
     try:
+        print(dir(context.dispatcher))
+        print(context.dispatcher)
         chat_id, target = context.job.context
+        handlers_remover(context.dispatcher, group=0)
+        handlers_remover(context.dispatcher, group=1)
+        context.dispatcher.add_handler(MessageHandler(filters=Filters.status_update.new_chat_members, callback=new_member_start))
         until_date = int(time.time())+31
         context.bot.kick_chat_member(chat_id=chat_id, user_id=target.id, until_date=until_date)
         logging.info(f'{target.username or target.first_name} ran out of time and was banned')

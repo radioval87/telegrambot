@@ -7,9 +7,10 @@ def handlers_remover(dispatcher, group):
     try:
         while dispatcher.handlers[group]:
             dispatcher.remove_handler(handler=dispatcher.handlers[group][0], group=group)
-            logging.info('Handler deleted')
+            # logging.info('Handler deleted')
     except KeyError:
-        logging.info(f'No handlers in group {group}')
+        pass
+        # logging.info(f'No handlers in group {group}')
 
 def add_logger_err(e):
     error_msg = repr(e)
