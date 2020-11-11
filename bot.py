@@ -47,10 +47,14 @@ def msg(chat_id, text, **kwargs):
 def new_member_start(update, context, tries=3):
     """Any newcomer is handled by this function first"""
     print('new_member_start')
-    print(dispatcher.handlers[0])
-    print(update)
+    try:
+        for handler in dispatcher.handlers[2]:
+            print(handler.filters)
+    except:
+        print('нету')
     
-
+        
+    # print(update)
     chat_id = update.message.chat.id
     chat = db.get_or_create(db.Chat, chat_id=chat_id)                                                       #adds the chat to the database or gets it from it
     inviter = update.message.from_user
@@ -66,33 +70,41 @@ def new_member_start(update, context, tries=3):
             until_date = int(time.time())+31                                                                         #31 seconds is a minimum ban period
             updater.bot.kick_chat_member(chat_id=chat_id, user_id=new_member.id, until_date=until_date)
             bot_message = msg(chat_id=chat_id, text=(f'{inviter.first_name}, {CANT_INVITE_MSG}'))
-            # print(bot_message)
 
         else:                                                                                                       #joined the group via invite link scenario
             if tries > 0:                                                                                           #checks how many tries left 
-                # handlers_remover(dispatcher, group=0)                                                               #removes any redundant handlers      
+                print(tries)
                 msg(chat_id=chat_id, text=(new_member.first_name + ', ' + WELCOME_MSG))
-                set_timer(update, context, due=CANDIDATE_DUE, target=new_member)                                    #activates the timer that bans the target if the due is reached
-                dispatcher.add_handler(MessageHandler(
+                # set_timer(update, context, due=CANDIDATE_DUE, target=new_member)                                    #activates the timer that bans the target if the due is reached
+                
+                mention_handler = MessageHandler(
                     filters=(Filters.user(new_member.id) &
                             (Filters.entity('mention') | Filters.entity('text_mention')) &
                             Filters.chat(chat_id)),
-                    callback=lambda update, context: new_member_validation(update, context, tries)), group=2) #!!!!!!!!
+                    callback=lambda update, context: new_member_validation(update, context, tries))
+                mention_handler.__name__ = 'mention_handler' + str(new_member.id)
+                dispatcher.add_handler(mention_handler, group=2)
 
-                dispatcher.add_handler(MessageHandler(
+                not_mention_handler = MessageHandler(
                     filters=(Filters.user(new_member.id) &
                             Filters.chat(chat_id) &
                             (~Filters.entity('mention') | ~Filters.entity('text_mention'))),
-                    callback=lambda update, context: delete_messages(update, context=(chat_id, new_member)), group=2))  #!!!!!!!!
+                    callback=lambda update, context: delete_messages(update, context=(chat_id, new_member)))
+                not_mention_handler.__name__ = 'not_mention_handler' + str(new_member.id)
+                dispatcher.add_handler(not_mention_handler, group=2)
+
+                for handler in dispatcher.handlers[2]:
+                    print(f'После создания {handler.filters}')
             else:
                 return negative_validation(update, context, additional_context = (chat_id, None, new_member))
 
 
 def new_member_validation(update, context, tries):
     print('new_member_validation')
-    unset_timer(update, context)
+    # unset_timer(update, context)
     chat_id = update.message.chat.id
     candidate = update.message.from_user
+
     inviter_username = (update.message.text).strip('@')
     try:
         inviter = (db.get(db.User, username=inviter_username) or
@@ -118,10 +130,11 @@ def new_member_validation(update, context, tries):
         dispatcher.add_handler(negative_validation_handler, group=1)
     else:
         bot_message = msg(chat_id=chat_id, text=VALIDATION_NEGATIVE_MSG)
-        print(bot_message)
+        # print(bot_message)
         tries -= 1
         update.message.new_chat_members = [candidate]
-        print(update)
+        # print(update)
+        
         return new_member_start(update, context, tries)
 
 
@@ -302,9 +315,7 @@ if __name__ == '__main__':
     dispatcher = updater.dispatcher
     dispatcher.add_handler(MessageHandler(filters=Filters.status_update.new_chat_members, callback=new_member_start), group=3)
     dispatcher.add_handler(MessageHandler(filters=((~Filters.status_update.new_chat_members) & (~Filters.command)), callback=add_msg_to_db), group=3)
-
-    
-    # dispatcher.add_handler(CommandHandler('admin', callback=add_admin))
+    dispatcher.add_handler(CommandHandler('admin', callback=add_admin))
     # dispatcher.add_handler(MessageHandler(filters=(Filters.regex(r'new')), callback=new_member_start))
     # dispatcher.add_handler(MessageHandler(filters=(~Filters.regex(r'new')), callback=add_msg_to_db))
     updater.start_polling()
