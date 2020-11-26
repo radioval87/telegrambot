@@ -1,7 +1,13 @@
 import logging
 
+
 logger = logging.getLogger('main_bot').setLevel(logging.WARNING)
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
+
+def msg(chat_id, text, **kwargs):
+    """Sends a message with possible additions such as a keyboard."""
+    logging.info(f'Sent message: {text}')
+    return updater.bot.sendMessage(chat_id=chat_id, text=text, **kwargs)
 
 def handlers_remover(dispatcher, handler_type, user_id, group):
     try:
@@ -16,16 +22,9 @@ def handlers_remover(dispatcher, handler_type, user_id, group):
         logging.info(f'No handlers in group {group}')
         return KeyError
     except AttributeError:
-        logging.info(f'Unnamed handler in group {group}')
+        logging.info(f'Unnamed handler in group {group} with {handler.filters}')
     except Exception as e:
         logging.info(repr(e))
-    # try:
-    #     while dispatcher.handlers[group]:
-    #         dispatcher.remove_handler(handler=dispatcher.handlers[group][0], group=group)
-    #         # logging.info('Handler deleted')
-    # except KeyError:
-    #     pass
-    #     # logging.info(f'No handlers in group {group}')
 
 def add_logger_err(e):
     error_msg = repr(e)
