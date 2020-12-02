@@ -1,7 +1,7 @@
 import logging
 import time
 
-from .miscellaneous import add_logger_err, handlers_remover
+from .miscellaneous import add_logger_err
 
 logger = logging.getLogger('timer').setLevel(logging.WARNING)
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
@@ -9,7 +9,7 @@ logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 def alarm(context):
     """Blocks the target when time runs out"""
     try:
-        chat_id, target, inviter = context.job.context
+        chat_id, target = context.job.context
         until_date = int(time.time())+31
         context.bot.kick_chat_member(chat_id=chat_id, user_id=target.id, until_date=until_date)
         logging.info(f'{target.username or target.first_name} ran out of time and was banned')
@@ -28,25 +28,27 @@ def remove_job_if_exists(name, context):
     except Exception as e:
         add_logger_err(e)
 
-def set_timer(update, context, due, target, inviter=None):
+def set_timer(context, due, target):
     """Add a job to the queue."""
     try:
-        chat_id = update.message.chat_id
+        chat_id = context.chat_data['chat_id']
         job_removed = remove_job_if_exists(str(chat_id), context)
-        context.job_queue.run_once(alarm, due, context=(chat_id, target, inviter), name=str(chat_id))
+        context.job_queue.run_once(alarm, due, context=(chat_id, target), name=str(chat_id))
         logging.info('Timer successfully set!')
     except Exception as e:
         add_logger_err(e)
 
 
-def unset_timer(update, context):
+def unset_timer(context):
     """Remove the timer."""
     try:
-        chat_id = update.message.chat_id
+        chat_id = context.chat_data['chat_id']
         job_removed = remove_job_if_exists(str(chat_id), context)
         if job_removed:
             logging.info('Timer was unset')
         else:
             logging.info('There was no timer')
+    except KeyError:
+        logging.info('There was no timer')
     except Exception as e:
         add_logger_err(e)

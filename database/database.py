@@ -1,12 +1,12 @@
 import logging
-from sqlalchemy import update
+
 from sqlalchemy import (VARCHAR, Boolean, Column, DateTime, ForeignKey,
-                        Integer, String, create_engine)
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
-from tools.miscellaneous import add_logger_err
+                        Integer, String, create_engine, event, update)
 from sqlalchemy.engine import Engine
-from sqlalchemy import event
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship, sessionmaker
+from tools.miscellaneous import add_logger_err
+
 # from sqlalchemy.orm.relationship import passive_deletes
 
 engine = create_engine('sqlite:///database/data.db', echo=False)
@@ -30,14 +30,14 @@ class Chat(Base):
     ban_mode = Column('ban_mode', Boolean, default=0)
    
     def __str__(self):
-        return f'Chat {self.chat_title} with {self.chat_id}. Ban mode:{ban_mode}'
+        return f'Chat {self.chat_title} with {self.chat_id}. Ban mode:{self.ban_mode}'
 
 
 class User(Base):
     __tablename__ = 'users'
     id = Column('id', Integer, primary_key=True, nullable=False)
-    tg_id = Column('tg_id', Integer, unique=True, nullable=False)
-    username = Column('username', VARCHAR(50), unique=True)
+    tg_id = Column('tg_id', Integer, nullable=False)
+    username = Column('username', VARCHAR(50), nullable=True)
     first_name = Column('first_name', VARCHAR(50), nullable=False)
     last_name = Column('last_name', VARCHAR(50))
     about = Column('about', VARCHAR(100))
@@ -56,9 +56,9 @@ class User(Base):
 class Message(Base):
     __tablename__ = 'messages'
     id = Column('id', Integer, primary_key=True, nullable=False)
-    from_id = Column('from_id', Integer, ForeignKey('users.tg_id'), nullable=True)
-    from_username = Column('from_username', VARCHAR(50), ForeignKey('users.username'), nullable=True)
-    from_first_name = Column('from_first_name', VARCHAR(50), nullable=True)
+    from_id = Column('from_id', Integer, ForeignKey('users.id'), nullable=False)
+    from_username = Column('username', VARCHAR(50), nullable=True)
+    from_first_name = Column('first_name', VARCHAR(50), nullable=False)
     msg_date = Column('msg_date', DateTime, nullable=False)
     msg_type = Column('msg_type', VARCHAR(20))
     text = Column('text', VARCHAR(4096))
@@ -67,7 +67,7 @@ class Message(Base):
     caps = Column('caps', Boolean, nullable=False)
 
     def __str__(self):
-        return f'Message from {self.username or self.first_name} in {self.chat_id} chat'
+        return f'Message from {self.from_username or self.from_first_name} in {self.chat_id} chat'
 
 
 Base.metadata.create_all(bind=engine)
