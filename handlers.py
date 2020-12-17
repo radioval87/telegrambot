@@ -4,7 +4,7 @@ from datetime import datetime
 
 # from djantimat.helpers import RegexpProc
 from dotenv import load_dotenv
-from telegram import ChatPermissions, ReplyKeyboardMarkup, ReplyKeyboardRemove
+from telegram import ChatPermissions, ReplyKeyboardMarkup, ReplyKeyboardRemove, error
 from telegram.ext import Filters, MessageHandler
 
 import database.database as db
@@ -26,8 +26,8 @@ validation_keyboard = ReplyKeyboardMarkup([['Да', 'Нет']],
                                           selective=True)
 remove_keyboard = ReplyKeyboardRemove()
 
-CANDIDATE_DUE = 500
-INVITER_DUE = 600
+CANDIDATE_DUE = 20
+INVITER_DUE = 20
 
 
 class MainHandlers:
@@ -86,7 +86,7 @@ class MainHandlers:
                                                      {WELCOME_MSG}'))
             #activates the timer that bans the target if the due is reached
             context.chat_data.update({'chat_id': chat_id})
-            set_timer(context, due=CANDIDATE_DUE, target=new_member)
+            set_timer(context, due=CANDIDATE_DUE)
 
             mention_handler = MessageHandler(
                 filters=(Filters.user(new_member.id) &
@@ -135,8 +135,8 @@ class MainHandlers:
                                         can_send_other_messages=False,
                                         can_add_web_page_previews=False,
                                         ))
-            set_timer(context, due=INVITER_DUE, target=candidate)
-            if inviter.username != 'NULL':
+            set_timer(context, due=INVITER_DUE)
+            if inviter.username:
                 msg(self.updater, chat_id=chat_id, text=('@' + inviter.username + ', ' + VALIDATION_MSG + f' ({candidate.first_name}/{candidate.username or "без username"})?'), reply_markup=validation_keyboard)
             else:
                 text = f'[{inviter.first_name}](tg://user?id={inviter.tg_id}), {VALIDATION_MSG} {candidate.first_name}/{candidate.username or "без username"}?'
@@ -173,7 +173,7 @@ class MainHandlers:
         else:
             inviter = context.user_data.get('inviter')
             candidate = context.user_data.get('new_member')
-        
+
         context.user_data.update({'inviter': inviter})
         context.user_data.update({'new_member': candidate})
         try:
@@ -224,13 +224,13 @@ class MainHandlers:
         handlers_remover(self.dispatcher, 'not_about_handler', user_id=candidate.id, chat_id=chat_id, group=1)
         db.update_invites(inviter.tg_id, -1)
         new_user = {'tg_id': candidate.id,
-                    'username': candidate.username or 'NULL',
+                    'username': candidate.username,
                     'first_name': candidate.first_name,
-                    'last_name': candidate.last_name or 'NULL',
+                    'last_name': candidate.last_name,
                     'about': update.message.text,
                     'joined_date': datetime.utcnow(),
                     'inviter_tg_id': inviter.tg_id,
-                    'inviter_username': inviter.username or 'NULL',
+                    'inviter_username': inviter.username,
                     'inviter_first_name': inviter.first_name,
                     'enter_chat_id': chat_id}
         db.create(db.User, **new_user)
@@ -277,7 +277,7 @@ class MainHandlers:
         self.updater.bot.kick_chat_member(chat_id=chat_id, user_id=candidate.id, until_date=until_date)
 
         try:
-            if inviter.username != 'NULL':
+            if inviter.username:
                 logging.info(f'{inviter.username} denied {candidate.username or candidate.first_name}')
             logging.info(f'{inviter.first_name or "Chat"} denied {candidate.username or candidate.first_name}')
         except AttributeError:
@@ -312,7 +312,7 @@ class MainHandlers:
                     'from_first_name': from_user.first_name,
                     'msg_date': datetime.utcnow(),
                     'msg_type': msg_type,
-                    'text': update.message.text or update.message.caption or 'NULL',
+                    'text': update.message.text or update.message.caption,
                     'chat_id': chat.chat_id,
                     'mat': mat,
                     'caps': caps}
@@ -324,13 +324,13 @@ class MainHandlers:
         chat_id = update.message.chat.id
         chat = db.get_or_create(db.Chat, chat_id=chat_id)        
         new_user = {'tg_id': candidate.id,
-                    'username': candidate.username or 'NULL',
+                    'username': candidate.username,
                     'first_name': candidate.first_name,
-                    'last_name': candidate.last_name or 'NULL',
+                    'last_name': candidate.last_name,
                     'about': 'admin',
                     'joined_date': datetime.utcnow(),
                     'inviter_tg_id': candidate.id,
-                    'inviter_username': candidate.username or 'NULL',
+                    'inviter_username': candidate.username,
                     'inviter_first_name': candidate.first_name,
                     'enter_chat_id': chat_id}
         db.create(db.User, **new_user)
@@ -339,22 +339,26 @@ class MainHandlers:
 
     def leave(self, update, context):
         print('leave')
-        user = update.message.left_chat_member
-        user_id = user.id
-        chat_id = update.message.chat.id
-        context.bot.restrict_chat_member(chat_id=chat_id, user_id=user_id,
-            permissions=ChatPermissions(can_send_messages=True,
-                                        can_send_media_messages=True,
-                                        can_send_other_messages=True,
-                                        can_add_web_page_previews=True,
-                                        can_send_polls=True,
-                                        can_invite_users=True,
-                                        can_pin_messages=True))
-        unset_timer(context)
-        handlers_remover(self.dispatcher, 'mention_handler', user_id, chat_id, 3)
-        handlers_remover(self.dispatcher, 'not_mention_handler', user_id, chat_id, 3)
-        handlers_remover(self.dispatcher, 'yes_handler', user_id, chat_id, 2)
-        handlers_remover(self.dispatcher, 'no_handler', user_id, chat_id, 2)
-        handlers_remover(self.dispatcher, 'about_handler', user_id, chat_id, 1)
-        handlers_remover(self.dispatcher, 'not_about_handler', user_id, chat_id, 1)
-        logging.info(f'{user.username or user.first_name} left chat {chat_id}')
+        try:
+            user = update.message.left_chat_member
+            user_id = user.id
+            chat_id = update.message.chat.id
+            context.bot.restrict_chat_member(chat_id=chat_id, user_id=user_id,
+                permissions=ChatPermissions(can_send_messages=True,
+                                            can_send_media_messages=True,
+                                            can_send_other_messages=True,
+                                            can_add_web_page_previews=True,
+                                            can_send_polls=True,
+                                            can_invite_users=True,
+                                            can_pin_messages=True))
+            unset_timer(context)
+            handlers_remover(self.dispatcher, 'mention_handler', user_id, chat_id, 3)
+            handlers_remover(self.dispatcher, 'not_mention_handler', user_id, chat_id, 3)
+            handlers_remover(self.dispatcher, 'yes_handler', user_id, chat_id, 2)
+            handlers_remover(self.dispatcher, 'no_handler', user_id, chat_id, 2)
+            handlers_remover(self.dispatcher, 'about_handler', user_id, chat_id, 1)
+            handlers_remover(self.dispatcher, 'not_about_handler', user_id, chat_id, 1)
+            logging.info(f'{user.username or user.first_name} left chat {chat_id}')
+        except error.BadRequest as e:
+            logging.info(f'{user.username or user.first_name} left chat {chat_id} with error: {e.message}')
+

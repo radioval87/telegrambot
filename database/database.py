@@ -61,7 +61,7 @@ class Message(Base):
     from_first_name = Column('first_name', VARCHAR(50), nullable=False)
     msg_date = Column('msg_date', DateTime, nullable=False)
     msg_type = Column('msg_type', VARCHAR(20))
-    text = Column('text', VARCHAR(4096))
+    text = Column('text', VARCHAR(4096), nullable=True)
     chat_id = Column('chat_id', Integer, ForeignKey('chats.chat_id'), nullable=False)
     mat = Column('mat', Boolean, nullable=False)
     caps = Column('caps', Boolean, nullable=False)
