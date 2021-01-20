@@ -1,5 +1,6 @@
 import logging
 import time
+
 from telegram import error
 
 from .miscellaneous import add_logger_err
@@ -13,8 +14,10 @@ def alarm(context):
         chat_id = context.job.context.chat_data.get('chat_id')
         target = context.job.context.user_data.get('new_member')
         until_date = int(time.time())+31
-        context.bot.kick_chat_member(chat_id=chat_id, user_id=target.id, until_date=until_date)
-        logging.info(f'{target.username or target.first_name} ran out of time and was banned')
+        context.bot.kick_chat_member(chat_id=chat_id,
+                                     user_id=target.id, until_date=until_date)
+        logging.info(f'{target.username or target.first_name}'+
+                     ' ran out of time and was banned')
     except error.BadRequest as e:
         logging.info(f'Alarm failed with error: {e.message}')
     except Exception as e:
@@ -39,7 +42,7 @@ def set_timer(context, due):
         target = context.user_data.get('new_member')
         name = str(chat_id) + str(target.id)
         job_removed = remove_job_if_exists(name, context)
-        context.job_queue.run_once(alarm, due, name=name, context=context) # передавать контекст как есть
+        context.job_queue.run_once(alarm, due, name=name, context=context)
         logging.info('Timer successfully set!')
     except Exception as e:
         add_logger_err(e)

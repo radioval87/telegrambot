@@ -1,6 +1,5 @@
 import logging
 
-
 logger = logging.getLogger('main_bot').setLevel(logging.WARNING)
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 

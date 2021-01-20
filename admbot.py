@@ -14,13 +14,11 @@ logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 
 def main():
-    logging.info('RV87_test_bot launched.')
+    logging.info('Bot launched.')
     updater = Updater(token=TELEGRAM_TOKEN)
     dispatcher = updater.dispatcher
     mh = handlers.MainHandlers(updater)
 
-    # dispatcher.add_handler(MessageHandler(filters=(Filters.regex(r'nnn')), callback=mh.new_member_start), group=4)
-    # dispatcher.add_handler(MessageHandler(filters=(~Filters.regex(r'nnn')), callback=mh.add_msg_to_db), group=4)
     dispatcher.add_handler(MessageHandler(
         filters=Filters.status_update.new_chat_members,
         callback=mh.new_member_start), group=4)
